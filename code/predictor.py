@@ -20,7 +20,7 @@ def sigmoid(z):
     s = 1/(1+np.exp(-z))
     return s
 
-def compute_cost(Z, Y):
+def compute_cost(Z, Y, parameters, lamda = 0.005):
     """
     Computes the cost
     Arguments:
@@ -30,33 +30,23 @@ def compute_cost(Z, Y):
     Returns:
     cost - Tensor of the cost function
     """
-    
+    W1 = parameters['W1']
+    W2 = parameters['W2']
+    W3 = parameters['W3']
+    W4 = parameters['W4']
+    W5 = parameters['W5']
     # to fit the tensorflow requirement for tf.nn.softmax_cross_entropy_with_logits(...,...)
     logits = tf.transpose(Z)
     labels = tf.transpose(Y)
     
     #cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = logits, labels = labels))
     cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = logits, labels = labels))
+    #cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = logits, labels = labels) + lamda*(tf.nn.l2_loss(W1) + tf.nn.l2_loss(W2) + tf.nn.l2_loss(W3) + tf.nn.l2_loss(W4) + tf.nn.l2_loss(W5)))
     return cost
 
-def create_placeholders(n_x, n_y):
-    """
-    Creates the placeholders for the tensorflow session.
-    Arguments:
-    n_x -- scalar, size of one input features
-    n_y -- scalar, number of classes - 3
-    
-    Returns:
-    X -- placeholder for the data input, of shape [n_x, None] and dtype "float"
-    Y -- placeholder for the input labels, of shape [n_y, None] and dtype "float"
-    """
-
-    X = tf.placeholder(tf.float32, shape=(n_x,None))
-    Y = tf.placeholder(tf.float32, shape=(n_y,None))
-    return X, Y
 
 
-def initialize_parameters(L1,L2, X_dim):
+def initialize_parameters(L1,L2,L3,L4, X_dim):
     """
     Initializes parameters to build a neural network with tensorflow. The shapes are:
                         W1 : [L1, X_dim]
@@ -74,15 +64,23 @@ def initialize_parameters(L1,L2, X_dim):
     b1 = tf.get_variable("b1", [L1,1], initializer = tf.zeros_initializer())
     W2 = tf.get_variable("W2", [L2,L1], initializer = tf.contrib.layers.xavier_initializer())
     b2 = tf.get_variable("b2", [L2,1], initializer = tf.zeros_initializer())
-    W3 = tf.get_variable("W3", [1,L2], initializer = tf.contrib.layers.xavier_initializer())
-    b3 = tf.get_variable("b3", [1,1], initializer = tf.zeros_initializer())
+    W3 = tf.get_variable("W3", [L3,L2], initializer = tf.contrib.layers.xavier_initializer())
+    b3 = tf.get_variable("b3", [L3,1], initializer = tf.zeros_initializer())
+    W4 = tf.get_variable("W4", [L4,L3], initializer = tf.contrib.layers.xavier_initializer())
+    b4 = tf.get_variable("b4", [L4,1], initializer = tf.zeros_initializer())
+    W5 = tf.get_variable("W5", [1,L4], initializer = tf.contrib.layers.xavier_initializer())
+    b5 = tf.get_variable("b5", [1,1], initializer = tf.zeros_initializer())
 
     parameters = {"W1": W1,
                   "b1": b1,
                   "W2": W2,
                   "b2": b2,
                   "W3": W3,
-                  "b3": b3}
+                  "b3": b3,
+                  "W4": W4,
+                  "b4": b4,
+                  "W5": W5,
+                  "b5": b5}
     
     return parameters
 
@@ -107,15 +105,23 @@ def forward_propagation_np (X, parameters):
     b2 = parameters['b2']
     W3 = parameters['W3']
     b3 = parameters['b3']
+    W4 = parameters['W4']
+    b4 = parameters['b4']
+    W5 = parameters['W5']
+    b5 = parameters['b5']
     
     Z1 = np.dot(W1,X) + b1
     A1 = np.maximum(Z1,0,Z1) # relu
     Z2 = np.dot(W2,A1) + b2
     A2 = np.maximum(Z2,0,Z2) # relu
     Z3 = np.dot(W3,A2) + b3
-    return Z3
+    A3 = np.maximum(Z3,0,Z3) # relu
+    Z4 = np.dot(W4,A3) + b4
+    A4 = np.maximum(Z4,0,Z4) # relu
+    Z5 = np.dot(W5,A4) + b5
+    return Z5
 
-def forward_propagation(X, parameters):
+def forward_propagation(X, parameters, keep_prob = 1):
     """
     Implements the forward propagation for the model: 
     LINEAR -> RELU -> LINEAR -> RELU -> LINEAR -> RELU --> LINEAR --> RELU --> LINEAR --> SOFTMAX
@@ -136,17 +142,29 @@ def forward_propagation(X, parameters):
     b2 = parameters['b2']
     W3 = parameters['W3']
     b3 = parameters['b3']
+    W4 = parameters['W4']
+    b4 = parameters['b4']
+    W5 = parameters['W5']
+    b5 = parameters['b5']
     
     Z1 = tf.add(tf.matmul(W1,X),b1)                                  # Z1 = np.dot(W1, X) + b1
     A1 = tf.nn.relu(Z1)                                              # A1 = relu(Z1)
-    Z2 = tf.add(tf.matmul(W2,A1),b2)                                 # Z2 = np.dot(W2, A1) + b2
+    D1 = tf.nn.dropout(A1, keep_prob)  # DROP-OUT here
+    Z2 = tf.add(tf.matmul(W2,D1),b2)                                 # Z2 = np.dot(W2, A1) + b2
     A2 = tf.nn.relu(Z2)                                              # A2 = relu(Z2)
-    Z3 = tf.add(tf.matmul(W3,A2),b3)                                 # Z3 = np.dot(W3, A2) + b3
-    return Z3
+    D2 = tf.nn.dropout(A2, keep_prob)  # DROP-OUT here
+    Z3 = tf.add(tf.matmul(W3,D2),b3)                                 # Z3 = np.dot(W3, A2) + b3
+    A3 = tf.nn.relu(Z3)                                              # A2 = relu(Z2)
+    D3 = tf.nn.dropout(A3, keep_prob)  # DROP-OUT here
+    Z4 = tf.add(tf.matmul(W4,D3),b4)                                 # Z3 = np.dot(W3, A2) + b3
+    A4 = tf.nn.relu(Z4)                                              # A2 = relu(Z2)
+    D4 = tf.nn.dropout(A4, keep_prob)  # DROP-OUT here
+    Z5 = tf.add(tf.matmul(W5,D4),b5)                                 # Z3 = np.dot(W3, A2) + b3
+    return Z5
 
 
-def model(X_train, Y_train, X_test, Y_test, learning_rate = 0.0001,
-          num_epochs = 1500, minibatch_size = 128, print_cost = True):
+def model(X_train, Y_train, X_test, Y_test, learning_rate = 0.005,
+          num_epochs = 1000, minibatch_size = 128, print_cost = True):
     """
     Implements a Five-layer tensorflow neural network: LINEAR->RELU->LINEAR->RELU->LINEAR->RELU->LINEAR->RELU->LINEAR->SOFTMAX.
     
@@ -163,8 +181,10 @@ def model(X_train, Y_train, X_test, Y_test, learning_rate = 0.0001,
     Returns:
     parameters -- parameters learnt by the model. They can then be used to predict.
     """
-    L1 = 20
-    L2 = 10
+    L1 = 30
+    L2 = 20
+    L3 = 10
+    L4 = 50
     X_dim = 200
     
     ops.reset_default_graph()                         # to be able to rerun the model without overwriting tf variables
@@ -176,14 +196,14 @@ def model(X_train, Y_train, X_test, Y_test, learning_rate = 0.0001,
     # Create Placeholders of shape (n_x, n_y)
     X = tf.placeholder(tf.float32, shape=(n_x,None))
     Y = tf.placeholder(tf.float32, shape=(n_y,None))
-
+    
     # Initialize parameters
-    parameters = initialize_parameters(L1,L2,X_dim)
+    parameters = initialize_parameters(L1,L2,L3,L4,X_dim)
     
     # Forward propagation: Build the forward propagation in the tensorflow graph
-    Z3 = forward_propagation(X, parameters)
+    Z5 = forward_propagation(X, parameters)
     # Cost function: Add cost function to tensorflow graph
-    cost = compute_cost(Z3, Y)
+    cost = compute_cost(Z5, Y, parameters)
     
     # Backpropagation: Define the tensorflow optimizer. Use an AdamOptimizer.
     optimizer = tf.train.GradientDescentOptimizer(learning_rate = learning_rate).minimize(cost)
@@ -233,7 +253,7 @@ def model(X_train, Y_train, X_test, Y_test, learning_rate = 0.0001,
         print ("Parameters have been trained!")
 
         # Calculate the correct predictions
-        correct_prediction = tf.equal(tf.round(tf.sigmoid(Z3)), Y)
+        correct_prediction = tf.equal(tf.round(tf.sigmoid(Z5)), Y)
         # Calculate accuracy on the test set
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
@@ -327,8 +347,8 @@ def test_results (X,Y,parameters):
     results = np.zeros((2,2))
     for i in range (0,np.shape(Y)[1]):
         x[:,0] = X[:,i]
-        Z3 = forward_propagation_np(x, parameters)
-        prediction = sigmoid(Z3)
+        Z5 = forward_propagation_np(x, parameters)
+        prediction = sigmoid(Z5)
         if Y[0,i]==1:
             results[0,0] +=1
             if prediction>0.5:
@@ -348,7 +368,7 @@ if __name__ == '__main__':
     X = np.load('../dataset/X_100.npy')
     Y_tmp = np.load('../dataset/Y_100.npy')
     Y = np.zeros((1,np.shape(Y_tmp)[1]))
-    Y[0,:] = Y_tmp[3,:] # [0,:] for 1min, [1,:] for 2min, [2,:] for 3min, [3,:] for 5min, [4,:] for 10min
+    Y[0,:] = Y_tmp[4,:] # [0,:] for 1min, [1,:] for 2min, [2,:] for 3min, [3,:] for 5min, [4,:] for 10min
     print (np.shape(X))
     print (np.shape(Y))
     m = np.shape(X)[1]
