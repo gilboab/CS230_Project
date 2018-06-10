@@ -6,7 +6,7 @@ num_epochs = 100
 num_steps = 1  # Limits the back propagation steps and makes the current prediction dependent on these many inputs
 batch_size = 128
 num_hidden_units = 150  # Number of Neurons
-learning_rate = 0.9
+learning_rate = 0.0005
 data_gather_steps = 40
 
 
